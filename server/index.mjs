@@ -92,7 +92,7 @@ const server = createServer(async (request, response) => {
 
 server.listen(config.port, '127.0.0.1', () => {
   const problems = configErrors()
-  console.log(`hoard collector on http://localhost:${config.port}`)
+  console.log(`persona-studio collector on http://localhost:${config.port}`)
   console.log(`  data dir: ${config.dataDir}`)
   if (problems.length > 0) {
     console.log(`  not configured yet: ${problems.join('; ')} — see docs/data-sources.md`)

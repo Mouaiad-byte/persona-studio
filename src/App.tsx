@@ -60,7 +60,7 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="wordmark">Hoard</h1>
+        <h1 className="wordmark">Persona Studio</h1>
         <span className="tagline">studio console — disclosed AI personas, one review gate, real numbers</span>
         <span className="spacer" />
         {source && (

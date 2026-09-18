@@ -1,4 +1,4 @@
-# Hoard
+# Persona Studio
 
 A studio console for running a small number of **disclosed** AI personas across social
 platforms: one place to hold the generation queue, the cross-platform numbers, and the
