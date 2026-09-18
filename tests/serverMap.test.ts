@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { analyticsRowsToPoints, channelFollowers, indexAnalyticsBy, parseRevenueCsv, videoToPost } from '../server/lib/map.mjs'
+import {
+  analyticsRowsToPoints,
+  channelFollowers,
+  indexAnalyticsBy,
+  parseRevenueCsv,
+  serializeRevenueRow,
+  videoToPost,
+} from '../server/lib/map.mjs'
 
 describe('analyticsRowsToPoints', () => {
   const response = {
@@ -130,5 +137,54 @@ describe('channelFollowers', () => {
 
   it('survives a channel with no statistics', () => {
     expect(channelFollowers({})).toBe(0)
+  })
+})
+
+describe('serializeRevenueRow', () => {
+  it('renders a row and round-trips back through the parser', () => {
+    const line = serializeRevenueRow({
+      date: '2026-09-09',
+      source: 'brand_deal',
+      amountUsd: 600,
+      note: 'grinder brand — one Reel, one carousel',
+    })
+    expect(line).toBe('2026-09-09,brand_deal,600.00,grinder brand — one Reel, one carousel')
+    expect(parseRevenueCsv(line)).toEqual([
+      {
+        date: '2026-09-09',
+        source: 'brand_deal',
+        amountUsd: 600,
+        note: 'grinder brand — one Reel, one carousel',
+      },
+    ])
+  })
+
+  it('omits an empty note, and still round-trips', () => {
+    const line = serializeRevenueRow({ date: '2026-09-01', source: 'affiliate', amountUsd: 12.5 })
+    expect(line).toBe('2026-09-01,affiliate,12.50')
+    expect(parseRevenueCsv(line)[0]).not.toHaveProperty('note')
+  })
+
+  it('rejects a line break in the note, which would invent a second row', () => {
+    expect(() =>
+      serializeRevenueRow({ date: '2026-09-01', source: 'affiliate', amountUsd: 1, note: 'a\n2026-09-02,brand_deal,9999' }),
+    ).toThrow(/line break/)
+  })
+
+  it('rejects a date that looks right but is not real', () => {
+    expect(() => serializeRevenueRow({ date: '2026-02-31', source: 'affiliate', amountUsd: 1 })).toThrow(
+      /not a real date/,
+    )
+  })
+
+  it('rejects a bad shape rather than writing it', () => {
+    expect(() => serializeRevenueRow({ date: '01/09/2026', source: 'affiliate', amountUsd: 1 })).toThrow(/YYYY-MM-DD/)
+    expect(() => serializeRevenueRow({ date: '2026-09-01', source: 'tips', amountUsd: 1 })).toThrow(/must be one of/)
+    expect(() => serializeRevenueRow({ date: '2026-09-01', source: 'affiliate', amountUsd: 'ten' })).toThrow(/not a number/)
+    expect(() => serializeRevenueRow({ date: '2026-09-01', source: 'affiliate', amountUsd: -5 })).toThrow(/negative/)
+  })
+
+  it('rounds to cents so the ledger stays readable', () => {
+    expect(serializeRevenueRow({ date: '2026-09-01', source: 'affiliate', amountUsd: 12.3456 })).toMatch(/,12\.35$/)
   })
 })

@@ -6,6 +6,8 @@ import { collect } from './collect.mjs'
 import { currentSnapshot } from './snapshotService.mjs'
 import { addItem, applyTransition } from './lib/queue.mjs'
 import { updateDisclosure } from './lib/personas.mjs'
+import { serializeRevenueRow } from './lib/map.mjs'
+import { appendLine } from './store.mjs'
 import { readJson, writeJson } from './store.mjs'
 import { decorateQueue, resolveAssetPath, saveAsset, stripDerived } from './assetStore.mjs'
 import { contentTypeFor } from './lib/assets.mjs'
@@ -61,6 +63,17 @@ const routes = {
   'POST /api/collect': async () => {
     const result = await collect()
     return result.report
+  },
+
+  /**
+   * Append one revenue entry. Append-only: nothing here rewrites or deletes a
+   * past row, because the CSV is the ledger and editing it is a text-editor job.
+   */
+  'POST /api/revenue': async (request) => {
+    const body = await readJsonBody(request)
+    const line = serializeRevenueRow(body)
+    appendLine('revenue.csv', line)
+    return { line }
   },
 
   /** Append a brief. New items always start unapproved — see lib/queue.mjs. */
@@ -203,7 +216,7 @@ const server = createServer(async (request, response) => {
       /^(cannot |unknown |no queue item|a queue item needs|approve requires|reject requires|request body|asset |")/.test(
         message,
       ) ||
-      /is not an allowed asset type|is not a valid queue item id|must be true or false|must be text|is longer than/.test(
+      /is not an allowed asset type|is not a valid queue item id|must be true or false|must be text|is longer than|is not a YYYY-MM-DD date|is not a real date|is not a number|may not be negative|may not contain a line break|must be one of/.test(
         message,
       )
     response.writeHead(isCallerError ? 400 : 500, { 'content-type': 'application/json' })

@@ -28,3 +28,31 @@ export async function updateDisclosure(
   }
   return parsed as { persona: Persona }
 }
+
+/**
+ * Append one revenue entry to the ledger. There is no API that reports a brand
+ * deal or a product sale, so this is where those rows come from.
+ */
+export async function addRevenue(entry: {
+  date: string
+  source: string
+  amountUsd: number
+  note?: string
+}): Promise<{ line: string }> {
+  const response = await fetch('/api/revenue', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(entry),
+  })
+  const text = await response.text()
+  let parsed: unknown
+  try {
+    parsed = text ? JSON.parse(text) : {}
+  } catch {
+    throw new Error(`collector returned ${response.status}: ${text.slice(0, 200)}`)
+  }
+  if (!response.ok) {
+    throw new Error((parsed as { error?: string })?.error ?? `collector returned ${response.status}`)
+  }
+  return parsed as { line: string }
+}

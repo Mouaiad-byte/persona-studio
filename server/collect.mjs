@@ -1,10 +1,22 @@
-import { analyticsByVideo, analyticsDaily, analyticsRevenue, listChannels, listVideos } from './google/youtube.mjs'
+import * as youtube from './google/youtube.mjs'
 import { analyticsRowsToPoints, channelFollowers, indexAnalyticsBy, videoToPost } from './lib/map.mjs'
 import { addDays, mergeDaily, pruneBefore } from './lib/history.mjs'
-import { readJson, writeJson } from './store.mjs'
+import * as store from './store.mjs'
 
 const KEEP_DAYS = 120
 const COLLECTED = 'collected.json'
+
+/**
+ * The API surface and the store a run depends on, injectable so the
+ * orchestration can be tested without credentials or a filesystem. The
+ * per-channel failure handling is the part worth testing, and it is exactly the
+ * part you cannot reach through the real API on demand.
+ *
+ * @typedef {{
+ *   listChannels: Function, analyticsDaily: Function, analyticsByVideo: Function,
+ *   listVideos: Function, analyticsRevenue: Function,
+ * }} CollectApi
+ */
 
 /** @returns {string} today in UTC, YYYY-MM-DD */
 export function today() {
@@ -19,15 +31,17 @@ export function today() {
  * channel does not cost you the other two. The run's report is what the
  * `/api/collect` response and the CLI print.
  *
- * @param {{ windowDays?: number, endDate?: string }} [options]
+ * @param {{ windowDays?: number, endDate?: string, api?: CollectApi, store?: object }} [options]
  */
 export async function collect(options = {}) {
+  const api = options.api ?? youtube
+  const io = options.store ?? store
   const endDate = options.endDate ?? today()
   const days = options.windowDays ?? 30
   const startDate = addDays(endDate, -(days - 1))
 
-  const personas = readJson('personas.json', [])
-  const stored = readJson(COLLECTED, { followers: {}, viewsByPlatform: {}, posts: [], payouts: [] })
+  const personas = io.readJson('personas.json', [])
+  const stored = io.readJson(COLLECTED, { followers: {}, viewsByPlatform: {}, posts: [], payouts: [] })
 
   /** @type {Array<{personaId: string, channelId: string}>} */
   const targets = []
@@ -55,7 +69,7 @@ export async function collect(options = {}) {
     return { report, snapshotReady: false }
   }
 
-  const channelResponse = await listChannels(targets.map((t) => t.channelId))
+  const channelResponse = await api.listChannels(targets.map((t) => t.channelId))
   const channelById = new Map((channelResponse.items ?? []).map((item) => [item.id, item]))
 
   /** @type {Record<string, number>} */
@@ -78,14 +92,14 @@ export async function collect(options = {}) {
       }
       followers[target.channelId] = channelFollowers(channel)
 
-      const daily = await analyticsDaily({ channelId: target.channelId, startDate, endDate })
+      const daily = await api.analyticsDaily({ channelId: target.channelId, startDate, endDate })
       youtubeViews = mergeSum(youtubeViews, analyticsRowsToPoints(daily, 'views'))
 
-      const perVideo = await analyticsByVideo({ channelId: target.channelId, startDate, endDate })
+      const perVideo = await api.analyticsByVideo({ channelId: target.channelId, startDate, endDate })
       const metricsByVideo = indexAnalyticsBy(perVideo, 'video')
       const videoIds = [...metricsByVideo.keys()]
       if (videoIds.length > 0) {
-        const videos = await listVideos(videoIds)
+        const videos = await api.listVideos(videoIds)
         for (const video of videos.items ?? []) {
           posts.push(videoToPost(video, metricsByVideo.get(video.id), { personaId: target.personaId, disclosed }))
         }
@@ -100,7 +114,7 @@ export async function collect(options = {}) {
     // Payout data is optional and commonly unavailable; its absence is a note,
     // not a failure. The revenue CSV is the source of record either way.
     try {
-      const revenue = await analyticsRevenue({ channelId: target.channelId, startDate, endDate })
+      const revenue = await api.analyticsRevenue({ channelId: target.channelId, startDate, endDate })
       for (const point of analyticsRowsToPoints(revenue, 'estimatedRevenue')) {
         if (point.value > 0) payouts.push({ date: point.t, amountUsd: point.value })
       }
@@ -117,7 +131,7 @@ export async function collect(options = {}) {
     endDate,
   )
 
-  writeJson(COLLECTED, {
+  io.writeJson(COLLECTED, {
     updatedAt: new Date().toISOString(),
     followers,
     viewsByPlatform: { ...stored.viewsByPlatform, youtube: mergedViews },

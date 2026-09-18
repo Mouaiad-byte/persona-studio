@@ -114,9 +114,22 @@ is the source of record: `date,source,amountUsd,note`, with `source` one of `bra
 fails the read with its line number rather than being skipped — silently losing a brand
 deal is worse than a failed parse.
 
+**Add entry** under *Revenue by source* in the console appends a row without opening the
+file — the entries that matter most, a brand deal or a product sale, are exactly the ones
+no API will ever report. It is append-only: nothing rewrites or deletes a past row, and a
+line break in a note is refused rather than escaped, since a note runs to the end of the
+line and a newline would silently invent a second row.
+
 Attribute revenue to a **date** and a **source**, not to a post. Post-level attribution
 across three platforms and a link shortener is a project of its own, and the decisions
 this console exists to inform — raise conversion, or raise volume? — do not need it.
+
+## Testing a new collector
+
+`collect()` takes its API client and store as injectable options, so a collector can be
+tested the way `tests/serverCollect.test.ts` tests this one: per-channel failures, a
+channel missing from the response, missing payout data, and merge behaviour — with no
+credentials and no filesystem.
 
 ## Writing your own source
 

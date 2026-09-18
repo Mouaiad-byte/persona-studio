@@ -114,8 +114,10 @@ export function parseRevenueCsv(text) {
     // The header can sit anywhere below the comment block, so it is recognised
     // by its content rather than by its line number.
     if (date.toLowerCase() === 'date') continue
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new Error(`revenue.csv line ${i + 1}: "${date}" is not a YYYY-MM-DD date`)
+    try {
+      assertDate(date)
+    } catch (error) {
+      throw new Error(`revenue.csv line ${i + 1}: ${/** @type {Error} */ (error).message}`)
     }
     if (!valid.has(source)) {
       throw new Error(
@@ -129,6 +131,66 @@ export function parseRevenueCsv(text) {
     out.push(note ? { date, source, amountUsd, note } : { date, source, amountUsd })
   }
   return out
+}
+
+export const REVENUE_SOURCES = ['brand_deal', 'affiliate', 'creator_fund', 'own_product']
+
+/**
+ * A YYYY-MM-DD date that is also a real calendar day.
+ *
+ * The shape check alone is not enough: Date.parse("2026-02-31") rolls over to
+ * March rather than failing, so a typo would be accepted and then silently land
+ * in the wrong window.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function assertDate(value) {
+  const date = String(value ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`"${date}" is not a YYYY-MM-DD date`)
+  }
+  const [year, month, day] = date.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new Error(`"${date}" is not a real date`)
+  }
+  return date
+}
+
+/**
+ * Check one revenue entry and render it as a CSV line.
+ *
+ * Serialising and parsing live next to each other on purpose: the note runs to
+ * the end of the line, so a newline in it would split one entry into two and
+ * silently invent a row. It is rejected rather than escaped — there is nowhere
+ * useful for a line break to go in a one-line note.
+ *
+ * @param {{ date?: unknown, source?: unknown, amountUsd?: unknown, note?: unknown }} entry
+ * @returns {string} a single line, no trailing newline
+ */
+export function serializeRevenueRow(entry) {
+  const date = assertDate(entry.date)
+
+  const source = String(entry.source ?? '')
+  if (!REVENUE_SOURCES.includes(source)) {
+    throw new Error(`source "${source}" must be one of ${REVENUE_SOURCES.join(', ')}`)
+  }
+
+  const amountUsd = Number(entry.amountUsd)
+  if (!Number.isFinite(amountUsd)) throw new Error(`"${entry.amountUsd}" is not a number`)
+  if (amountUsd < 0) throw new Error('amount may not be negative')
+
+  const note = String(entry.note ?? '').trim()
+  if (/[\r\n]/.test(note)) throw new Error('note may not contain a line break')
+  if (note.length > 200) throw new Error('note is longer than 200 characters')
+
+  const amount = amountUsd.toFixed(2)
+  return note ? `${date},${source},${amount},${note}` : `${date},${source},${amount}`
 }
 
 /**

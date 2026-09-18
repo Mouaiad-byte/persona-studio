@@ -4,6 +4,7 @@ import { StatTile } from '../components/StatTile'
 import { TimeSeriesChart } from '../components/TimeSeriesChart'
 import { PlatformBars } from '../components/PlatformBars'
 import { RevenuePanel } from '../components/RevenuePanel'
+import { RevenueForm } from '../components/RevenueForm'
 import { PersonaPanel } from '../components/PersonaPanel'
 import { QueuePanel } from '../components/QueuePanel'
 import { PostsTable } from '../components/PostsTable'
@@ -12,7 +13,7 @@ import { compactNumber, fullNumber, shortDate, usd } from '../lib/format'
 import { blockedCount } from '../lib/disclosure'
 import { CoverageStrip } from '../components/CoverageStrip'
 import { QueueAction, transition, uploadAsset } from '../data/queueApi'
-import { updateDisclosure } from '../data/personaApi'
+import { addRevenue, updateDisclosure } from '../data/personaApi'
 import { Disclosure, Persona, QueueItem } from '../data/types'
 
 interface Props {
@@ -225,6 +226,14 @@ export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
             <h2 className="card-title">Revenue by source · 30 days</h2>
           </div>
           <RevenuePanel entries={snapshot.revenue} />
+          {canWrite && (
+            <RevenueForm
+              onSubmit={async (entry) => {
+                await addRevenue(entry)
+                onMutated?.()
+              }}
+            />
+          )}
         </div>
       </div>
 

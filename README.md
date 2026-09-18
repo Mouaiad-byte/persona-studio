@@ -56,6 +56,8 @@ Two copies would drift, and the drift would end with something publishing that s
 have.
 
 ```
+POST /api/revenue               {date, source, amountUsd, note?}  (append-only)
+POST /api/personas/<id>/disclosure  {bioLabel?, perPostLabel?, platformAiFlag?}
 POST /api/queue                 {personaId, brief, generator?}
 POST /api/queue/transition      {id, action, actor?, reason?, scheduledFor?}
                                 action: submit | approve | reject | publish | reopen
@@ -103,7 +105,7 @@ echoing the resolved path.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 — runs on the bundled mock
-npm test           # 151 tests, no browser and no credentials needed
+npm test           # 168 tests, no browser and no credentials needed
 npm run typecheck
 npm run build
 ```
