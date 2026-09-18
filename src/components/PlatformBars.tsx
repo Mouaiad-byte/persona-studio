@@ -40,7 +40,8 @@ export function PlatformBars({ rows }: { rows: Row[] }) {
           <div style={{ background: 'var(--surface-2)', borderRadius: 4, height: 8 }}>
             <div
               style={{
-                width: `${Math.max((row.views / max) * 100, 1)}%`,
+                // A zero draws nothing. A minimum-width sliver would imply data.
+                width: row.views === 0 ? '0%' : `${Math.max((row.views / max) * 100, 1)}%`,
                 height: 8,
                 borderRadius: 4,
                 background: PLATFORM_COLOR_VAR[row.platform],

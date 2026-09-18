@@ -13,6 +13,15 @@ export function RevenuePanel({ entries }: { entries: RevenueEntry[] }) {
   const max = Math.max(...rows.map(([, v]) => v), 1)
   const total = rows.reduce((s, [, v]) => s + v, 0)
 
+  if (rows.length === 0) {
+    return (
+      <p className="muted small" style={{ margin: 0 }}>
+        No revenue recorded in this window. Revenue has no API across these paths — keep it in{' '}
+        <code>data/revenue.csv</code>.
+      </p>
+    )
+  }
+
   return (
     <div className="stack" style={{ gap: 12 }}>
       {rows.map(([source, amount]) => (
@@ -24,7 +33,7 @@ export function RevenuePanel({ entries }: { entries: RevenueEntry[] }) {
           <div style={{ background: 'var(--surface-2)', borderRadius: 4, height: 8 }}>
             <div
               style={{
-                width: `${Math.max((amount / max) * 100, 1)}%`,
+                width: amount === 0 ? '0%' : `${Math.max((amount / max) * 100, 1)}%`,
                 height: 8,
                 borderRadius: 4,
                 background: 'var(--series-1)',

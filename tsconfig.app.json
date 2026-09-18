@@ -5,6 +5,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "allowJs": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -13,5 +14,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "server"]
 }

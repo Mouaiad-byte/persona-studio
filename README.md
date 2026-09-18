@@ -39,11 +39,23 @@ connected:
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm test           # 34 tests, no browser needed
+npm run dev        # http://localhost:5173 — runs on the bundled mock
+npm test           # 83 tests, no browser and no credentials needed
 npm run typecheck
 npm run build
 ```
+
+Then, to run on your own numbers (see `docs/data-sources.md`):
+
+```bash
+cp .env.example .env            # Google OAuth client for the YouTube collector
+cp data/personas.example.json data/personas.json
+npm run server                  # collector on :8787
+# open http://localhost:8787/auth/google once to consent
+npm run collect                 # merges today's figures into data/collected.json
+```
+
+The console prefers the collector and falls back to the mock, and says which it used.
 
 ## Layout
 
@@ -52,6 +64,7 @@ src/
   data/
     types.ts         domain model — Persona, Post, QueueItem, RevenueEntry, DataSource
     mockSource.ts    deterministic synthetic snapshot (seeded; same numbers every reload)
+    httpSource.ts    reads the collector, and validates everything crossing the boundary
   lib/
     disclosure.ts    the publish gate — one function decides what may go out
     economics.ts     the projection model + the structural checks on it
@@ -59,11 +72,23 @@ src/
     format.ts        number/date formatting
   components/        stat tile, time-series chart (crosshair + tooltip), bars, tables
   features/          Dashboard, Studio, Economics
+server/
+  index.mjs          local HTTP face: /api/snapshot, /api/collect, the OAuth dance
+  cli.mjs            `npm run collect`
+  collect.mjs        one collection run, failing per-channel rather than per-run
+  snapshotService.mjs assembles the served Snapshot from disk
+  google/            OAuth + thin YouTube API wrappers
+  lib/               PURE and tested: response mapping, history merge, snapshot assembly
+data/                your personas, queue and revenue (gitignored; examples committed)
 docs/
   openart-mcp.md     the connector setup the reel was actually teaching
-  data-sources.md    how to replace the mock with real platform data
+  data-sources.md    wiring the collector to your own accounts
 MONETIZATION.md      where the money in this actually comes from
 ```
+
+The collector splits along one line: anything that interprets an API response lives in
+`server/lib/` as a pure function with tests, because that is the layer where a wrong field
+name silently becomes a wrong number on a dashboard. The API wrappers stay thin.
 
 ## Charts
 

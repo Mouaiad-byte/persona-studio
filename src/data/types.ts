@@ -33,6 +33,8 @@ export interface Disclosure {
 export interface Account {
   platform: Platform
   handle: string
+  /** Platform-side id the collector queries by (a YouTube channel id, etc.). */
+  externalId?: string
   followers: number
   /** Platform monetisation program state — most programs exclude mass-produced content. */
   monetization: 'none' | 'applied' | 'rejected' | 'active'
@@ -117,6 +119,19 @@ export interface Snapshot {
   generatedAt: string
   /** True when the numbers are synthetic. The UI says so out loud when they are. */
   isMock: boolean
+  /**
+   * Per-platform collection state. A snapshot is usually part real: the
+   * collector covers what its APIs expose and nothing more, and the console
+   * says which is which rather than implying whole coverage.
+   */
+  coverage?: Coverage[]
+}
+
+export interface Coverage {
+  platform: Platform
+  /** 'live' — collected from the platform API. 'manual' — operator-maintained file. 'absent' — no data. */
+  status: 'live' | 'manual' | 'absent'
+  note?: string
 }
 
 /**

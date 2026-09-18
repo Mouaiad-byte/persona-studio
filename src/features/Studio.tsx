@@ -37,6 +37,7 @@ export function Studio({ snapshot }: { snapshot: Snapshot }) {
   const [copied, setCopied] = useState(false)
 
   const persona = snapshot.personas.find((p) => p.id === personaId)
+  const hasPersonas = snapshot.personas.length > 0
   const brief = useMemo(
     () => (persona ? buildBrief(persona, format, beat) : ''),
     [persona, format, beat],
@@ -51,7 +52,16 @@ export function Studio({ snapshot }: { snapshot: Snapshot }) {
         from and a person who looks at the result — which is what this screen is.
       </div>
 
-      <div className="grid split">
+      {!hasPersonas && (
+        <div className="card">
+          <p className="muted small" style={{ margin: 0 }}>
+            No personas configured, so there is nothing to write a brief for. Copy{' '}
+            <code>data/personas.example.json</code> to <code>data/personas.json</code> first.
+          </p>
+        </div>
+      )}
+
+      <div className="grid split" style={{ display: hasPersonas ? undefined : 'none' }}>
         <div className="card">
           <div className="card-head">
             <h2 className="card-title">Generation brief</h2>

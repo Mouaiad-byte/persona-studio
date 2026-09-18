@@ -33,6 +33,14 @@ export function QueuePanel({ queue, personas }: Props) {
   const byId = new Map(personas.map((p) => [p.id, p]))
   const open = queue.filter((q) => q.state !== 'published' && q.state !== 'rejected')
 
+  if (open.length === 0) {
+    return (
+      <p className="muted small" style={{ margin: 0 }}>
+        Queue is empty. Write a brief on the Studio screen, or add items to <code>data/queue.json</code>.
+      </p>
+    )
+  }
+
   return (
     <table>
       <thead>

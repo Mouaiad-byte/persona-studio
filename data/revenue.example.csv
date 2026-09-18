@@ -1,0 +1,7 @@
+# Revenue has no API across these paths, so this file is the source of record.
+# source must be one of: brand_deal, affiliate, creator_fund, own_product
+# A note may contain commas; it runs to the end of the line.
+date,source,amountUsd,note
+2026-09-03,affiliate,24.80,grinder link
+2026-09-09,brand_deal,600,grinder brand — one Reel, one carousel
+2026-09-12,own_product,57.00,dial-in guide (PDF)

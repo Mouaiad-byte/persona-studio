@@ -1,0 +1,28 @@
+[
+  {
+    "id": "p-vela",
+    "name": "Vela",
+    "niche": "Home espresso & cafe routines",
+    "createdAt": "2026-05-20",
+    "disclosure": {
+      "bioLabel": "AI-generated persona · studio-run · not a real person",
+      "perPostLabel": true,
+      "platformAiFlag": true
+    },
+    "accounts": [
+      {
+        "platform": "youtube",
+        "handle": "@velabrews",
+        "externalId": "UC_REPLACE_WITH_YOUR_CHANNEL_ID",
+        "followers": 0,
+        "monetization": "applied"
+      },
+      {
+        "platform": "instagram",
+        "handle": "@vela.brews",
+        "followers": 0,
+        "monetization": "none"
+      }
+    ]
+  }
+]

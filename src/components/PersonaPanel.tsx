@@ -15,6 +15,15 @@ function engagementRate(posts: Post[]): number {
 }
 
 export function PersonaPanel({ personas, posts }: Props) {
+  if (personas.length === 0) {
+    return (
+      <p className="muted small" style={{ margin: 0 }}>
+        No personas configured. Copy <code>data/personas.example.json</code> to{' '}
+        <code>data/personas.json</code> and put your channel id in <code>externalId</code>.
+      </p>
+    )
+  }
+
   return (
     <table>
       <thead>

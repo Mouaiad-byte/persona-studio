@@ -18,13 +18,19 @@ export function StatTile({ label, value, sub, change, riseIsGood = true }: Props
       <div className="tile-label">{label}</div>
       <div className="tile-value mono">{value}</div>
       <div className="tile-sub">
-        {showChange && (
-          <span className={good ? 'delta-up' : 'delta-down'}>
-            {change! >= 0 ? '▲' : '▼'} {Math.abs(change! * 100).toFixed(1)}%
-          </span>
+        {/* Either a comparison or the reason there isn't one — never both. */}
+        {change === null ? (
+          <span className="muted">no prior period</span>
+        ) : (
+          <>
+            {showChange && (
+              <span className={good ? 'delta-up' : 'delta-down'}>
+                {change! >= 0 ? '▲' : '▼'} {Math.abs(change! * 100).toFixed(1)}%
+              </span>
+            )}
+            {sub && <span className="muted">{sub}</span>}
+          </>
         )}
-        {sub && <span className="muted">{sub}</span>}
-        {!showChange && change === null && <span className="muted">no prior period</span>}
       </div>
     </div>
   )

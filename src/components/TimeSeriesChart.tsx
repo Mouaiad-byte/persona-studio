@@ -12,6 +12,16 @@ interface Props {
   accent?: string
 }
 
+function dedupeByLabel(values: number[]): number[] {
+  const seen = new Set<string>()
+  return values.filter((value) => {
+    const label = compactNumber(value)
+    if (seen.has(label)) return false
+    seen.add(label)
+    return true
+  })
+}
+
 /** Left gutter holds the tick labels so they never overlap the plot. */
 const PAD = { top: 10, bottom: 22, left: 46 }
 
@@ -32,7 +42,9 @@ export function TimeSeriesChart({ points, seriesLabel, height = 160, accent = 'v
 
   const last = points[points.length - 1]
   const active = hover === null ? null : points[hover]
-  const gridValues = [scale.min, (scale.min + scale.max) / 2, scale.max]
+  // Three ticks, minus any whose label would read the same as another: a series
+  // that is all zeros has a tiny range, and "1 / 1 / 0" looks like a bug.
+  const gridValues = dedupeByLabel([scale.min, (scale.min + scale.max) / 2, scale.max])
 
   const ariaLabel =
     `${seriesLabel} over ${points.length} days. ` +

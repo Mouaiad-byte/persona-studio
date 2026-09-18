@@ -10,8 +10,15 @@ import { PostsTable } from '../components/PostsTable'
 import { periodChange, sumLast } from '../lib/series'
 import { compactNumber, fullNumber, shortDate, usd } from '../lib/format'
 import { blockedCount } from '../lib/disclosure'
+import { CoverageStrip } from '../components/CoverageStrip'
 
-export function Dashboard({ snapshot }: { snapshot: Snapshot }) {
+interface Props {
+  snapshot: Snapshot
+  /** Set when the live collector could not be reached and the mock stood in. */
+  fallbackReason?: string
+}
+
+export function Dashboard({ snapshot, fallbackReason }: Props) {
   const [showTable, setShowTable] = useState(false)
 
   const views7 = sumLast(snapshot.viewsDaily, 7)
@@ -39,9 +46,27 @@ export function Dashboard({ snapshot }: { snapshot: Snapshot }) {
       {snapshot.isMock && (
         <div className="warn-banner">
           <strong>Synthetic data.</strong> Every figure below comes from the bundled mock source, so the
-          console can be read before any account is connected. Wire a real source per{' '}
-          <code>docs/data-sources.md</code> — a dashboard that cannot tell you where its numbers came from
-          is the thing the reel was selling.
+          console can be read before any account is connected. Start the collector and run{' '}
+          <code>npm run collect</code> per <code>docs/data-sources.md</code> — a dashboard that cannot tell
+          you where its numbers came from is the thing the reel was selling.
+          {fallbackReason && (
+            <div className="small" style={{ marginTop: 8 }}>
+              Collector not reachable: <code>{fallbackReason}</code>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!snapshot.isMock && snapshot.coverage && (
+        <div className="card">
+          <div className="card-head">
+            <h2 className="card-title">Coverage</h2>
+            <span className="spacer" />
+            <span className="card-note">
+              a platform with no collector reads zero — that is not the same as zero views
+            </span>
+          </div>
+          <CoverageStrip coverage={snapshot.coverage} />
         </div>
       )}
 

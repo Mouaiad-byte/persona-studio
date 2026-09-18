@@ -11,6 +11,14 @@ export function PostsTable({ posts, personas, limit = 8 }: Props) {
   const byId = new Map(personas.map((p) => [p.id, p]))
   const rows = [...posts].sort((a, b) => b.views - a.views).slice(0, limit)
 
+  if (rows.length === 0) {
+    return (
+      <p className="muted small" style={{ margin: 0 }}>
+        Nothing published in this window, or no collector has reported posts yet.
+      </p>
+    )
+  }
+
   return (
     <table>
       <thead>
