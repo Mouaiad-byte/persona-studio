@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_INPUTS, project, realityChecks, StudioInputs } from '../src/lib/economics'
+import {
+  DEFAULT_INPUTS,
+  factsFromSnapshot,
+  inputsFromFacts,
+  project,
+  realityChecks,
+  StudioInputs,
+} from '../src/lib/economics'
 
 const base: StudioInputs = DEFAULT_INPUTS
 
@@ -97,5 +104,64 @@ describe('realityChecks', () => {
     }
     const ids = realityChecks(input, project(input)).map((c) => c.id)
     expect(ids).toContain('deal-concentration')
+  })
+})
+
+describe('factsFromSnapshot', () => {
+  const snapshot = {
+    personas: [{ id: 'a' }, { id: 'b' }],
+    posts: [{ views: 100 }, { views: 300 }, { views: 5000 }],
+    revenue: [{ amountUsd: 40 }],
+    viewsDaily: Array.from({ length: 10 }, () => ({ value: 400 })),
+  }
+
+  it('uses the median rather than the mean, so one outlier does not set the plan', () => {
+    // mean is 1,800; median is 300
+    expect(factsFromSnapshot(snapshot)!.medianViewsPerPost).toBe(300)
+  })
+
+  it('averages the median across an even number of posts', () => {
+    const facts = factsFromSnapshot({ ...snapshot, posts: [{ views: 100 }, { views: 200 }] })
+    expect(facts!.medianViewsPerPost).toBe(150)
+  })
+
+  it('derives cadence per persona per day', () => {
+    // 3 posts / 2 personas / 10 days
+    expect(factsFromSnapshot(snapshot)!.postsPerPersonaPerDay).toBeCloseTo(0.15, 5)
+  })
+
+  it('computes observed RPM over the window', () => {
+    // $40 over 4,000 views
+    expect(factsFromSnapshot(snapshot)!.observedRpmUsd).toBeCloseTo(10, 5)
+  })
+
+  it('reports null RPM rather than zero when there were no views', () => {
+    const facts = factsFromSnapshot({
+      ...snapshot,
+      viewsDaily: Array.from({ length: 10 }, () => ({ value: 0 })),
+    })
+    expect(facts!.observedRpmUsd).toBeNull()
+  })
+
+  it('declines to derive anything from an empty window', () => {
+    expect(factsFromSnapshot({ ...snapshot, posts: [] })).toBeNull()
+    expect(factsFromSnapshot({ ...snapshot, personas: [] })).toBeNull()
+    expect(factsFromSnapshot({ ...snapshot, viewsDaily: [] })).toBeNull()
+  })
+})
+
+describe('inputsFromFacts', () => {
+  it('overwrites the observable inputs and keeps the operator rates and costs', () => {
+    const facts = factsFromSnapshot({
+      personas: [{ id: 'a' }],
+      posts: [{ views: 2500 }],
+      revenue: [],
+      viewsDaily: Array.from({ length: 30 }, () => ({ value: 10 })),
+    })!
+    const seeded = inputsFromFacts(facts, DEFAULT_INPUTS)
+    expect(seeded.medianViewsPerPost).toBe(2500)
+    expect(seeded.personaCount).toBe(1)
+    expect(seeded.rates).toEqual(DEFAULT_INPUTS.rates)
+    expect(seeded.costs).toEqual(DEFAULT_INPUTS.costs)
   })
 })

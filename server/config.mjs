@@ -44,6 +44,11 @@ export const config = {
   root,
   dataDir: resolve(root, env('HOARD_DATA_DIR', 'data')),
   port: Number(env('PORT', '8787')),
+  /**
+   * Minutes between automatic collections. 0 disables it, which is the default:
+   * a scheduler that starts itself without being asked is a surprise.
+   */
+  collectIntervalMinutes: Math.max(0, Number(env('COLLECT_INTERVAL_MINUTES', '0')) || 0),
   google: {
     clientId: env('GOOGLE_CLIENT_ID', ''),
     clientSecret: env('GOOGLE_CLIENT_SECRET', ''),

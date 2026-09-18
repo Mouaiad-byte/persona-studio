@@ -256,3 +256,70 @@ export function realityChecks(input: StudioInputs, out: StudioProjection): Reali
 
   return checks
 }
+
+/**
+ * What the last window actually did, as opposed to what you assumed it would.
+ */
+export interface SnapshotFacts {
+  personaCount: number
+  postsPerPersonaPerDay: number
+  medianViewsPerPost: number
+  /** Revenue per 1,000 views over the window. null when there were no views. */
+  observedRpmUsd: number | null
+  postCount: number
+  windowDays: number
+}
+
+interface SnapshotLike {
+  personas: Array<unknown>
+  posts: Array<{ views: number }>
+  revenue: Array<{ amountUsd: number }>
+  viewsDaily: Array<{ value: number }>
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
+}
+
+/**
+ * Derive the observable inputs from a snapshot.
+ *
+ * Returns null when there is nothing to derive from — seeding a projection off
+ * zero posts would replace an honest guess with a confident-looking zero, which
+ * is worse.
+ */
+export function factsFromSnapshot(snapshot: SnapshotLike): SnapshotFacts | null {
+  const personaCount = snapshot.personas.length
+  const windowDays = snapshot.viewsDaily.length
+  if (personaCount === 0 || windowDays === 0 || snapshot.posts.length === 0) return null
+
+  const views = snapshot.viewsDaily.reduce((sum, point) => sum + point.value, 0)
+  const revenue = snapshot.revenue.reduce((sum, entry) => sum + entry.amountUsd, 0)
+
+  return {
+    personaCount,
+    postsPerPersonaPerDay: snapshot.posts.length / personaCount / windowDays,
+    // Median, not mean: one post that travelled is not your typical post, and
+    // planning volume off the mean is how people talk themselves into scaling.
+    medianViewsPerPost: median(snapshot.posts.map((post) => post.views)),
+    observedRpmUsd: views > 0 ? (revenue / views) * 1000 : null,
+    postCount: snapshot.posts.length,
+    windowDays,
+  }
+}
+
+/**
+ * Seed a projection with what actually happened, keeping every rate and cost the
+ * operator set — those are not observable from a snapshot.
+ */
+export function inputsFromFacts(facts: SnapshotFacts, base: StudioInputs = DEFAULT_INPUTS): StudioInputs {
+  return {
+    ...base,
+    personaCount: facts.personaCount,
+    postsPerPersonaPerDay: Math.round(facts.postsPerPersonaPerDay * 100) / 100,
+    medianViewsPerPost: Math.round(facts.medianViewsPerPost),
+  }
+}

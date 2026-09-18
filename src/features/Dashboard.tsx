@@ -12,7 +12,8 @@ import { compactNumber, fullNumber, shortDate, usd } from '../lib/format'
 import { blockedCount } from '../lib/disclosure'
 import { CoverageStrip } from '../components/CoverageStrip'
 import { QueueAction, transition, uploadAsset } from '../data/queueApi'
-import { QueueItem } from '../data/types'
+import { updateDisclosure } from '../data/personaApi'
+import { Disclosure, Persona, QueueItem } from '../data/types'
 
 interface Props {
   snapshot: Snapshot
@@ -36,6 +37,19 @@ export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
 
   // The mock has no server behind it, so the queue is read-only there.
   const canWrite = !snapshot.isMock
+
+  async function changeDisclosure(persona: Persona, patch: Partial<Disclosure>) {
+    setQueueError(null)
+    setBusyId(persona.id)
+    try {
+      await updateDisclosure(persona.id, patch)
+      onMutated?.()
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function attach(item: QueueItem, file: File) {
     setQueueError(null)
@@ -197,7 +211,13 @@ export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
             <span className="spacer" />
             <span className="card-note">disclosure is checked before anything publishes</span>
           </div>
-          <PersonaPanel personas={snapshot.personas} posts={snapshot.posts} />
+          <PersonaPanel
+            personas={snapshot.personas}
+            posts={snapshot.posts}
+            canWrite={canWrite}
+            busyId={busyId}
+            onDisclosureChange={changeDisclosure}
+          />
         </div>
 
         <div className="card">

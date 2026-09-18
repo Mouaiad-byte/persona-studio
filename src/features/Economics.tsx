@@ -3,10 +3,13 @@ import {
   DEFAULT_INPUTS,
   RealityCheck,
   StudioInputs,
+  factsFromSnapshot,
+  inputsFromFacts,
   project,
   realityChecks,
 } from '../lib/economics'
 import { compactNumber, usd } from '../lib/format'
+import { Snapshot } from '../data/types'
 
 const SEVERITY_COLOR: Record<RealityCheck['severity'], string> = {
   critical: 'var(--critical)',
@@ -57,8 +60,17 @@ function NumberField({
   )
 }
 
-export function Economics() {
-  const [input, setInput] = useState<StudioInputs>(DEFAULT_INPUTS)
+export function Economics({ snapshot }: { snapshot?: Snapshot }) {
+  // Only real snapshots seed the model. Seeding off the mock would put invented
+  // numbers behind a projection that is supposed to argue with reality.
+  const facts = useMemo(
+    () => (snapshot && !snapshot.isMock ? factsFromSnapshot(snapshot) : null),
+    [snapshot],
+  )
+  const [seeded, setSeeded] = useState(Boolean(facts))
+  const [input, setInput] = useState<StudioInputs>(() =>
+    facts ? inputsFromFacts(facts, DEFAULT_INPUTS) : DEFAULT_INPUTS,
+  )
   const out = useMemo(() => project(input), [input])
   const checks = useMemo(() => realityChecks(input, out), [input, out])
 
@@ -69,11 +81,47 @@ export function Economics() {
 
   return (
     <div className="stack" style={{ gap: 16 }}>
-      <div className="warn-banner">
-        <strong>Work the numbers before the build.</strong> Rates below are starting values, not facts —
-        payout programs and commission terms change, and they differ by market. Replace each one with what
-        your own dashboard actually pays before planning around it.
-      </div>
+      {facts && seeded ? (
+        <div className="warn-banner" style={{ borderLeftColor: 'var(--good)' }}>
+          <strong>Seeded from your last {facts.windowDays} days.</strong> Personas, cadence and median views
+          per post come from {facts.postCount} real post{facts.postCount === 1 ? '' : 's'}
+          {facts.observedRpmUsd !== null && (
+            <> — your observed RPM over that window was {usd(facts.observedRpmUsd, { cents: true })}</>
+          )}
+          . Rates and costs below are still assumptions: a snapshot cannot observe what a brand paid you or
+          what a generation run cost.
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="ghost-btn"
+              onClick={() => {
+                setInput(DEFAULT_INPUTS)
+                setSeeded(false)
+              }}
+            >
+              Use starting values instead
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="warn-banner">
+          <strong>Work the numbers before the build.</strong> Rates below are starting values, not facts —
+          payout programs and commission terms change, and they differ by market. Replace each one with what
+          your own dashboard actually pays before planning around it.
+          {facts && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="ghost-btn"
+                onClick={() => {
+                  setInput(inputsFromFacts(facts, input))
+                  setSeeded(true)
+                }}
+              >
+                Use my last {facts.windowDays} days
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid split">
         <div className="card">

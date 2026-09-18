@@ -56,8 +56,14 @@ npm run collect     # prints what it collected and what it could not
 npm run dev         # console now reads the collector
 ```
 
-`npm run collect` is the thing to put on a schedule. The server only serves what the last
-collect wrote, so a browser refresh never spends API quota.
+The server only serves what the last collect wrote, so a browser refresh never spends API
+quota.
+
+To collect automatically, set `COLLECT_INTERVAL_MINUTES` in `.env` (360 — six hours — is
+plenty; these APIs revise recent days anyway and each run spends quota). It defaults to 0,
+meaning manual only. Overlapping runs are skipped and a failure logs and waits for the
+next tick rather than taking the server down. If you would rather not keep the server
+running, put `npm run collect` in cron instead.
 
 ### What it collects
 

@@ -1,10 +1,14 @@
-import { Persona, Post } from '../data/types'
+import { useState } from 'react'
+import { Disclosure, Persona, Post } from '../data/types'
 import { disclosureStatus } from '../lib/disclosure'
 import { compactNumber, percent } from '../lib/format'
 
 interface Props {
   personas: Persona[]
   posts: Post[]
+  canWrite?: boolean
+  busyId?: string | null
+  onDisclosureChange?: (persona: Persona, patch: Partial<Disclosure>) => void
 }
 
 function engagementRate(posts: Post[]): number {
@@ -14,7 +18,7 @@ function engagementRate(posts: Post[]): number {
   return actions / views
 }
 
-export function PersonaPanel({ personas, posts }: Props) {
+export function PersonaPanel({ personas, posts, canWrite, busyId, onDisclosureChange }: Props) {
   if (personas.length === 0) {
     return (
       <p className="muted small" style={{ margin: 0 }}>
@@ -62,11 +66,84 @@ export function PersonaPanel({ personas, posts }: Props) {
                     missing {status.missing.join(', ')}
                   </span>
                 )}
+                {canWrite && onDisclosureChange && (
+                  <DisclosureEditor
+                    persona={persona}
+                    busy={busyId === persona.id}
+                    onChange={(patch) => onDisclosureChange(persona, patch)}
+                  />
+                )}
               </td>
             </tr>
           )
         })}
       </tbody>
     </table>
+  )
+}
+
+/**
+ * Fixing disclosure where it is reported. The alternative — telling someone
+ * their persona is blocked and then making them edit JSON — is how a gate ends
+ * up switched off instead of satisfied.
+ */
+function DisclosureEditor({
+  persona,
+  busy,
+  onChange,
+}: {
+  persona: Persona
+  busy: boolean
+  onChange: (patch: Partial<Disclosure>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState(persona.disclosure.bioLabel)
+
+  if (!open) {
+    return (
+      <button
+        className="ghost-btn"
+        style={{ marginTop: 6, display: 'block' }}
+        onClick={() => setOpen(true)}
+      >
+        Edit labels
+      </button>
+    )
+  }
+
+  return (
+    <div className="stack" style={{ gap: 6, marginTop: 8, opacity: busy ? 0.55 : 1 }}>
+      <label className="row small" style={{ gap: 6 }}>
+        <input
+          type="checkbox"
+          checked={persona.disclosure.perPostLabel}
+          disabled={busy}
+          onChange={(e) => onChange({ perPostLabel: e.target.checked })}
+        />
+        per-post AI label
+      </label>
+      <label className="row small" style={{ gap: 6 }}>
+        <input
+          type="checkbox"
+          checked={persona.disclosure.platformAiFlag}
+          disabled={busy}
+          onChange={(e) => onChange({ platformAiFlag: e.target.checked })}
+        />
+        platform AI flag
+      </label>
+      <input
+        value={label}
+        disabled={busy}
+        placeholder="AI label shown in the profile bio"
+        style={{ fontSize: 12 }}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={() => {
+          if (label !== persona.disclosure.bioLabel) onChange({ bioLabel: label })
+        }}
+      />
+      <button className="ghost-btn" onClick={() => setOpen(false)}>
+        Done
+      </button>
+    </div>
   )
 }

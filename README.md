@@ -19,7 +19,17 @@ connected:
 |---|---|
 | **Dashboard** | Views (7d, with a real prior-period comparison), followers, revenue by source, platform split, persona table, the open queue, top posts. |
 | **Studio** | Turns a persona + format + beat into a generation brief you can hand to an image/video MCP server, shows the publish checklist that brief has to clear, and queues it. |
-| **Economics** | A monthly projection you can argue with: output, rates, costs, blended RPM, review hours, breakeven, and the structural problems those inputs imply. |
+| **Economics** | A monthly projection you can argue with: output, rates, costs, blended RPM, review hours, breakeven, and the structural problems those inputs imply. Seeds itself from your last 30 days once there is data to seed from. |
+
+## Fixing what the gate blocks
+
+The personas table edits disclosure in place — the two flags and the bio label — because
+telling someone their persona is blocked and then making them hand-edit JSON is how a gate
+ends up switched off instead of satisfied. Everything else about a persona stays in
+`data/personas.json`, where it is set once.
+
+Flags are validated as booleans server-side and refused rather than coerced: `"false"` and
+`0` are exactly the values that would quietly disable a gate.
 
 ## The queue
 
@@ -93,7 +103,7 @@ echoing the resolved path.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 — runs on the bundled mock
-npm test           # 135 tests, no browser and no credentials needed
+npm test           # 151 tests, no browser and no credentials needed
 npm run typecheck
 npm run build
 ```
@@ -119,6 +129,7 @@ src/
     mockSource.ts    deterministic synthetic snapshot (seeded; same numbers every reload)
     httpSource.ts    reads the collector, and validates everything crossing the boundary
     queueApi.ts      queue mutations; surfaces the server's own refusal message
+    personaApi.ts    disclosure edits
   lib/
     disclosure.ts    typed surface over shared/gate.mjs
     economics.ts     the projection model + the structural checks on it

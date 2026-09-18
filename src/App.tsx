@@ -102,7 +102,7 @@ export function App() {
         />
       )}
       {snapshot && tab === 'studio' && <Studio snapshot={snapshot} onMutated={refresh} />}
-      {tab === 'economics' && <Economics />}
+      {tab === 'economics' && <Economics snapshot={snapshot ?? undefined} />}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { authUrl, exchangeCode, storedToken } from './google/oauth.mjs'
 import { collect } from './collect.mjs'
 import { currentSnapshot } from './snapshotService.mjs'
 import { addItem, applyTransition } from './lib/queue.mjs'
+import { updateDisclosure } from './lib/personas.mjs'
 import { readJson, writeJson } from './store.mjs'
 import { decorateQueue, resolveAssetPath, saveAsset, stripDerived } from './assetStore.mjs'
 import { contentTypeFor } from './lib/assets.mjs'
@@ -157,6 +158,18 @@ const server = createServer(async (request, response) => {
       return
     }
 
+    // POST /api/personas/<id>/disclosure
+    const disclosureMatch = /^\/api\/personas\/([^/]+)\/disclosure$/.exec(url.pathname)
+    if (disclosureMatch && request.method === 'POST') {
+      const id = decodeURIComponent(disclosureMatch[1])
+      const patch = await readJsonBody(request)
+      const { personas, persona } = updateDisclosure(readJson('personas.json', []), id, patch)
+      writeJson('personas.json', personas)
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ persona }))
+      return
+    }
+
     // POST /api/queue/<itemId>/asset — raw body upload, filename in a header.
     const uploadMatch = /^\/api\/queue\/([^/]+)\/asset$/.exec(url.pathname)
     if (uploadMatch && request.method === 'POST') {
@@ -189,11 +202,57 @@ const server = createServer(async (request, response) => {
     const isCallerError =
       /^(cannot |unknown |no queue item|a queue item needs|approve requires|reject requires|request body|asset |")/.test(
         message,
-      ) || /is not an allowed asset type|is not a valid queue item id/.test(message)
+      ) ||
+      /is not an allowed asset type|is not a valid queue item id|must be true or false|must be text|is longer than/.test(
+        message,
+      )
     response.writeHead(isCallerError ? 400 : 500, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ error: message }))
   }
 })
+
+/**
+ * Periodic collection.
+ *
+ * Guarded against overlap: a slow run must not have a second one started on top
+ * of it, because both would merge into the same history file. A failed run logs
+ * and waits for the next tick rather than taking the server down — the console
+ * keeps serving the last good snapshot either way.
+ */
+function startScheduler() {
+  const minutes = config.collectIntervalMinutes
+  if (minutes <= 0) return
+  if (configErrors().length > 0 || !storedToken()) {
+    console.log(`  scheduler idle: not configured or not authorised yet`)
+    return
+  }
+
+  let running = false
+  const tick = async () => {
+    if (running) {
+      console.log(`[${new Date().toISOString()}] skipped: previous collect still running`)
+      return
+    }
+    running = true
+    try {
+      const { report } = await collect()
+      console.log(
+        `[${new Date().toISOString()}] collected ${report.collected.length}/${report.channels} channel(s)` +
+          (report.failed.length ? `, ${report.failed.length} failed` : ''),
+      )
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] collect failed: ${String(error.message ?? error)}`)
+    } finally {
+      running = false
+    }
+  }
+
+  const interval = setInterval(tick, minutes * 60 * 1000)
+  // Do not hold the process open on the timer alone.
+  interval.unref?.()
+  console.log(`  collecting every ${minutes} minute(s)`)
+  void tick()
+}
 
 server.listen(config.port, '127.0.0.1', () => {
   const problems = configErrors()
@@ -206,4 +265,5 @@ server.listen(config.port, '127.0.0.1', () => {
   } else {
     console.log('  authorised. run `npm run collect` to refresh the snapshot.')
   }
+  startScheduler()
 })
