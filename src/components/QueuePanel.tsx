@@ -1,6 +1,7 @@
 import { Persona, QueueItem, QueueState } from '../data/types'
 import { publishGate } from '../lib/disclosure'
 import { shortDate } from '../lib/format'
+import { QueueAction, actionsFor } from '../data/queueApi'
 
 const STATE_LABEL: Record<QueueState, string> = {
   brief: 'Brief',
@@ -20,18 +21,32 @@ const STATE_COLOR: Record<QueueState, string> = {
   rejected: 'var(--critical)',
 }
 
+const ACTION_LABEL: Record<QueueAction, string> = {
+  submit: 'Ready for review',
+  approve: 'Approve',
+  reject: 'Reject',
+  publish: 'Mark published',
+  reopen: 'Reopen',
+}
+
 interface Props {
   queue: QueueItem[]
   personas: Persona[]
+  /** False when running on the mock, which has no server to write to. */
+  canWrite: boolean
+  busyId?: string | null
+  onAction?: (item: QueueItem, action: QueueAction) => void
 }
 
 /**
  * The queue is the product. Nothing leaves it without a human sign-off and a
- * complete disclosure record, and the blocked reason is shown rather than hidden.
+ * complete disclosure record, and the blocked reason is shown rather than
+ * hidden. Published items drop out; rejected ones stay, because a rejection
+ * should be reworkable rather than lost.
  */
-export function QueuePanel({ queue, personas }: Props) {
+export function QueuePanel({ queue, personas, canWrite, busyId, onAction }: Props) {
   const byId = new Map(personas.map((p) => [p.id, p]))
-  const open = queue.filter((q) => q.state !== 'published' && q.state !== 'rejected')
+  const open = queue.filter((q) => q.state !== 'published')
 
   if (open.length === 0) {
     return (
@@ -47,26 +62,37 @@ export function QueuePanel({ queue, personas }: Props) {
         <tr>
           <th scope="col">Brief</th>
           <th scope="col">Persona</th>
-          <th scope="col">Generator</th>
           <th scope="col">State</th>
           <th scope="col">Publishable</th>
+          {canWrite && <th scope="col">Actions</th>}
         </tr>
       </thead>
       <tbody>
         {open.map((item) => {
           const persona = byId.get(item.personaId)
           const gate = publishGate(item, persona)
+          const busy = busyId === item.id
           return (
-            <tr key={item.id}>
-              <td style={{ maxWidth: 320 }}>{item.brief}</td>
+            <tr key={item.id} style={{ opacity: busy ? 0.55 : 1 }}>
+              <td style={{ maxWidth: 300 }}>
+                {item.brief}
+                <div className="muted small mono" style={{ marginTop: 2 }}>{item.generator}</div>
+                {item.rejectionReason && (
+                  <div className="small" style={{ color: 'var(--critical)', marginTop: 2 }}>
+                    {item.rejectionReason}
+                  </div>
+                )}
+              </td>
               <td className="muted">{persona?.name ?? '—'}</td>
-              <td className="muted small mono">{item.generator}</td>
               <td>
                 <span className="pill">
                   <span className="dot" style={{ background: STATE_COLOR[item.state] }} />
                   {STATE_LABEL[item.state]}
                   {item.scheduledFor ? ` · ${shortDate(item.scheduledFor)}` : ''}
                 </span>
+                {item.approvedBy && (
+                  <div className="muted small" style={{ marginTop: 2 }}>by {item.approvedBy}</div>
+                )}
               </td>
               <td className={gate.allowed ? '' : 'muted small'}>
                 {gate.allowed ? (
@@ -78,6 +104,22 @@ export function QueuePanel({ queue, personas }: Props) {
                   gate.reasons.join(' · ')
                 )}
               </td>
+              {canWrite && (
+                <td>
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    {actionsFor(item.state).map((action) => (
+                      <button
+                        key={action}
+                        className="ghost-btn"
+                        disabled={busy}
+                        onClick={() => onAction?.(item, action)}
+                      >
+                        {ACTION_LABEL[action]}
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              )}
             </tr>
           )
         })}

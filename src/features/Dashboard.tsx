@@ -11,15 +11,65 @@ import { periodChange, sumLast } from '../lib/series'
 import { compactNumber, fullNumber, shortDate, usd } from '../lib/format'
 import { blockedCount } from '../lib/disclosure'
 import { CoverageStrip } from '../components/CoverageStrip'
+import { QueueAction, transition } from '../data/queueApi'
+import { QueueItem } from '../data/types'
 
 interface Props {
   snapshot: Snapshot
   /** Set when the live collector could not be reached and the mock stood in. */
   fallbackReason?: string
+  /** Re-reads the snapshot after a successful mutation. */
+  onMutated?: () => void
 }
 
-export function Dashboard({ snapshot, fallbackReason }: Props) {
+export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
   const [showTable, setShowTable] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [queueError, setQueueError] = useState<string | null>(null)
+  const [actor, setActor] = useState(() => {
+    try {
+      return localStorage.getItem('hoard.actor') ?? ''
+    } catch {
+      return ''
+    }
+  })
+
+  // The mock has no server behind it, so the queue is read-only there.
+  const canWrite = !snapshot.isMock
+
+  async function runAction(item: QueueItem, action: QueueAction) {
+    setQueueError(null)
+
+    // An approval needs a name on it. Asking once, here, is what makes the
+    // sign-off attributable rather than a button that says "yes".
+    let signer = actor.trim()
+    if (action === 'approve' && !signer) {
+      signer = (window.prompt('Approving as — your name:') ?? '').trim()
+      if (!signer) return
+      setActor(signer)
+      try {
+        localStorage.setItem('hoard.actor', signer)
+      } catch {
+        // A blocked storage write costs a re-prompt next time, nothing more.
+      }
+    }
+
+    let reason: string | undefined
+    if (action === 'reject') {
+      reason = (window.prompt('Why is this rejected?') ?? '').trim()
+      if (!reason) return
+    }
+
+    setBusyId(item.id)
+    try {
+      await transition({ id: item.id, action, actor: signer || undefined, reason })
+      onMutated?.()
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const views7 = sumLast(snapshot.viewsDaily, 7)
   const views7Change = periodChange(snapshot.viewsDaily, 7)
@@ -149,11 +199,39 @@ export function Dashboard({ snapshot, fallbackReason }: Props) {
         <div className="card-head">
           <h2 className="card-title">Open queue</h2>
           <span className="spacer" />
+          {canWrite && actor && <span className="card-note">signing off as {actor}</span>}
           <span className="card-note">
             {blocked > 0 ? `${blocked} blocked from publishing` : 'nothing blocked'}
           </span>
         </div>
-        <QueuePanel queue={snapshot.queue} personas={snapshot.personas} />
+        {queueError && (
+          <div
+            className="small"
+            role="alert"
+            style={{
+              marginBottom: 12,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--hairline)',
+              borderLeft: '3px solid var(--critical)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {queueError}
+          </div>
+        )}
+        <QueuePanel
+          queue={snapshot.queue}
+          personas={snapshot.personas}
+          canWrite={canWrite}
+          busyId={busyId}
+          onAction={runAction}
+        />
+        {!canWrite && (
+          <p className="muted small" style={{ marginTop: 10, marginBottom: 0 }}>
+            Read-only: the queue is served by the mock. Start the collector to approve or reject.
+          </p>
+        )}
       </div>
 
       <div className="card">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Persona, Snapshot } from '../data/types'
 import { disclosureStatus } from '../lib/disclosure'
+import { addBrief } from '../data/queueApi'
 
 type Format = 'reel' | 'carousel' | 'still'
 
@@ -30,11 +31,43 @@ function buildBrief(persona: Persona, format: Format, beat: string): string {
   ].join('\n')
 }
 
-export function Studio({ snapshot }: { snapshot: Snapshot }) {
+interface Props {
+  snapshot: Snapshot
+  /** Re-reads the snapshot after a brief is queued. */
+  onMutated?: () => void
+}
+
+export function Studio({ snapshot, onMutated }: Props) {
   const [personaId, setPersonaId] = useState(snapshot.personas[0]?.id ?? '')
   const [format, setFormat] = useState<Format>('reel')
   const [beat, setBeat] = useState('')
   const [copied, setCopied] = useState(false)
+  const [queueing, setQueueing] = useState(false)
+  const [queueNote, setQueueNote] = useState<string | null>(null)
+  const [queueError, setQueueError] = useState<string | null>(null)
+
+  // Writes need the collector; the mock has nothing behind it.
+  const canWrite = !snapshot.isMock
+
+  async function queueBrief() {
+    if (!persona) return
+    setQueueError(null)
+    setQueueNote(null)
+    setQueueing(true)
+    try {
+      const { item } = await addBrief({
+        personaId: persona.id,
+        brief,
+        generator: format === 'reel' ? 'openart-mcp:kling-video' : 'openart-mcp:flux-1.1',
+      })
+      setQueueNote(`Queued as ${item.id}, unapproved — it needs a person before it can publish.`)
+      onMutated?.()
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setQueueing(false)
+    }
+  }
 
   const persona = snapshot.personas.find((p) => p.id === personaId)
   const hasPersonas = snapshot.personas.length > 0
@@ -76,7 +109,22 @@ export function Studio({ snapshot }: { snapshot: Snapshot }) {
             >
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {canWrite && (
+              <button className="ghost-btn" disabled={queueing || !beat.trim()} onClick={queueBrief}>
+                {queueing ? 'Queueing…' : 'Add to queue'}
+              </button>
+            )}
           </div>
+          {queueNote && (
+            <p className="small" style={{ marginTop: 0, color: 'var(--good)' }}>
+              {queueNote}
+            </p>
+          )}
+          {queueError && (
+            <p className="small" role="alert" style={{ marginTop: 0, color: 'var(--critical)' }}>
+              {queueError}
+            </p>
+          )}
           <pre
             style={{
               margin: 0,

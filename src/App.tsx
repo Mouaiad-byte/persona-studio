@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { DataSource, Snapshot } from './data/types'
 import { mockSource } from './data/mockSource'
 import { httpSource } from './data/httpSource'
@@ -46,12 +46,14 @@ export function App() {
   const [source, setSource] = useState<SourceState | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     void loadSnapshot().then((result) => {
       setSnapshot(result.snapshot)
       setSource(result.source)
     })
   }, [])
+
+  useEffect(refresh, [refresh])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -93,9 +95,13 @@ export function App() {
 
       {!snapshot && <p className="muted">Loading snapshot…</p>}
       {snapshot && tab === 'dashboard' && (
-        <Dashboard snapshot={snapshot} fallbackReason={source?.fallbackReason} />
+        <Dashboard
+          snapshot={snapshot}
+          fallbackReason={source?.fallbackReason}
+          onMutated={refresh}
+        />
       )}
-      {snapshot && tab === 'studio' && <Studio snapshot={snapshot} />}
+      {snapshot && tab === 'studio' && <Studio snapshot={snapshot} onMutated={refresh} />}
       {tab === 'economics' && <Economics />}
     </div>
   )

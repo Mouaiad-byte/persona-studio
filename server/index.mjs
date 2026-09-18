@@ -4,6 +4,8 @@ import { config, configErrors } from './config.mjs'
 import { authUrl, exchangeCode, storedToken } from './google/oauth.mjs'
 import { collect } from './collect.mjs'
 import { currentSnapshot } from './snapshotService.mjs'
+import { addItem, applyTransition } from './lib/queue.mjs'
+import { readJson, writeJson } from './store.mjs'
 
 /**
  * The collector's local HTTP face. It serves the snapshot the console reads,
@@ -15,6 +17,30 @@ import { currentSnapshot } from './snapshotService.mjs'
 
 /** One-shot CSRF states for the OAuth redirect. */
 const pendingStates = new Set()
+
+const MAX_BODY_BYTES = 64 * 1024
+
+/**
+ * Read a JSON request body, refusing anything oversized rather than buffering
+ * it. Local service, but an unbounded read is still an unbounded read.
+ *
+ * @param {import('node:http').IncomingMessage} request
+ */
+async function readJsonBody(request) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of request) {
+    size += chunk.length
+    if (size > MAX_BODY_BYTES) throw new Error('request body too large')
+    chunks.push(chunk)
+  }
+  if (chunks.length === 0) return {}
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    throw new Error('request body is not valid JSON')
+  }
+}
 
 const routes = {
   'GET /api/status': async () => ({
@@ -31,6 +57,28 @@ const routes = {
   'POST /api/collect': async () => {
     const result = await collect()
     return result.report
+  },
+
+  /** Append a brief. New items always start unapproved — see lib/queue.mjs. */
+  'POST /api/queue': async (request) => {
+    const body = await readJsonBody(request)
+    const personas = readJson('personas.json', [])
+    const { queue, item } = addItem(readJson('queue.json', []), personas, body)
+    writeJson('queue.json', queue)
+    return { item }
+  },
+
+  /**
+   * Move an item through the queue. The same gate the console draws with is
+   * enforced here, so a refusal in the UI is a refusal on the server too — the
+   * console is a convenience, not the guard.
+   */
+  'POST /api/queue/transition': async (request) => {
+    const body = await readJsonBody(request)
+    const personas = readJson('personas.json', [])
+    const { queue, item } = applyTransition(readJson('queue.json', []), personas, body)
+    writeJson('queue.json', queue)
+    return { item }
   },
 }
 
@@ -80,12 +128,18 @@ const server = createServer(async (request, response) => {
       return
     }
 
-    const body = await handler()
+    const body = await handler(request)
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify(body))
   } catch (error) {
     const message = String(/** @type {Error} */ (error).message ?? error)
-    response.writeHead(500, { 'content-type': 'application/json' })
+    // A rejected transition or a malformed body is the request's problem; only
+    // an unexpected failure is the server's.
+    const isCallerError =
+      /^(cannot |unknown |no queue item|a queue item needs|approve requires|reject requires|request body)/.test(
+        message,
+      )
+    response.writeHead(isCallerError ? 400 : 500, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ error: message }))
   }
 })
