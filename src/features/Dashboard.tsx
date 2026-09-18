@@ -11,7 +11,7 @@ import { periodChange, sumLast } from '../lib/series'
 import { compactNumber, fullNumber, shortDate, usd } from '../lib/format'
 import { blockedCount } from '../lib/disclosure'
 import { CoverageStrip } from '../components/CoverageStrip'
-import { QueueAction, transition } from '../data/queueApi'
+import { QueueAction, transition, uploadAsset } from '../data/queueApi'
 import { QueueItem } from '../data/types'
 
 interface Props {
@@ -36,6 +36,19 @@ export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
 
   // The mock has no server behind it, so the queue is read-only there.
   const canWrite = !snapshot.isMock
+
+  async function attach(item: QueueItem, file: File) {
+    setQueueError(null)
+    setBusyId(item.id)
+    try {
+      await uploadAsset(item.id, file)
+      onMutated?.()
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function runAction(item: QueueItem, action: QueueAction) {
     setQueueError(null)
@@ -226,6 +239,7 @@ export function Dashboard({ snapshot, fallbackReason, onMutated }: Props) {
           canWrite={canWrite}
           busyId={busyId}
           onAction={runAction}
+          onAttach={attach}
         />
         {!canWrite && (
           <p className="muted small" style={{ marginTop: 10, marginBottom: 0 }}>

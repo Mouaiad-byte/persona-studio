@@ -196,3 +196,27 @@ tbody tr:last-child td { border-bottom: none; }
   width: 44px; height: 64px; border-radius: 6px; flex: none;
   border: 1px solid var(--hairline); background: var(--surface-2);
 }
+
+/* ---- queue assets ---- */
+.asset-strip { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; }
+.asset-thumb {
+  width: 44px; height: 62px; border-radius: 6px; flex: none; overflow: hidden;
+  border: 1px solid var(--hairline); background: var(--surface-2);
+  display: block; padding: 0; cursor: pointer;
+}
+.asset-thumb img, .asset-thumb video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.asset-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.asset-empty {
+  width: 44px; height: 62px; border-radius: 6px; flex: none;
+  border: 1px dashed var(--baseline); display: grid; place-items: center;
+  color: var(--text-muted); font-size: 10px; text-align: center; line-height: 1.2;
+}
+.attach-label {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  border: 1px solid var(--hairline); background: transparent; color: var(--text-secondary);
+  font-size: 12px; padding: 5px 10px; border-radius: 6px;
+}
+.attach-label:hover { background: var(--surface-2); color: var(--text-primary); }
+.attach-label input { display: none; }

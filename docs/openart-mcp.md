@@ -46,3 +46,21 @@ Nothing here is OpenArt-specific — the `generator` field on a queue item is a 
 string (`openart-mcp:flux-1.1`, `openart-mcp:kling-video`) precisely so you can run more
 than one provider and compare cost per usable asset. That ratio, not cost per generation,
 is the number that matters: the attempts you discard cost the same as the ones you ship.
+
+## Getting the generated file into the queue
+
+The console reviews the asset, not the brief, so the generated file has to land
+against its queue item. Two ways, and they are the same thing underneath:
+
+- **Attach** in the console's queue row — a file picker, one file at a time.
+- **Drop it in** at `data/assets/<itemId>/` (e.g. `data/assets/q-3/frame-01.png`).
+  The collector discovers whatever is in that folder, so saving straight out of
+  Claude works with no upload step.
+
+Allowed types are `.png .jpg .jpeg .webp .gif .mp4 .webm .mov`. `.svg` is
+deliberately absent: it executes script when served, and the console would be
+serving it from its own origin.
+
+Until something is attached, the item cannot be submitted for review, approved,
+or published — the refusal says so. That is the point: a sign-off on an item with
+nothing attached is a sign-off on the brief you wrote yourself.

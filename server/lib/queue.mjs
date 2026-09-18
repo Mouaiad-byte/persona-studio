@@ -6,7 +6,7 @@
  * is refused again here — the console is a convenience, not the guard.
  */
 
-import { disclosureStatus, publishGate } from '../../shared/gate.mjs'
+import { disclosureStatus, hasAsset, publishGate } from '../../shared/gate.mjs'
 
 /** Which states each action may be applied from, and what it moves to. */
 export const TRANSITIONS = {
@@ -51,6 +51,10 @@ export function applyTransition(queue, personas, request) {
   /** @type {any} */
   const next = { ...current, state: transition.to }
 
+  if (action === 'submit' && !hasAsset(current)) {
+    throw new Error('cannot submit for review: no asset attached — there is nothing to review')
+  }
+
   if (action === 'approve') {
     const actor = String(request.actor ?? '').trim()
     if (!actor) throw new Error('approve requires an actor — someone has to own the sign-off')
@@ -62,6 +66,11 @@ export function applyTransition(queue, personas, request) {
       throw new Error(
         `cannot approve: disclosure incomplete for "${persona.name ?? persona.id}" — missing ${disclosure.missing.join(', ')}`,
       )
+    }
+    // Approving with nothing attached would be signing off on the brief, not
+    // on what was generated from it.
+    if (!hasAsset(current)) {
+      throw new Error('cannot approve: no asset attached — there is nothing to sign off on')
     }
     next.approvedBy = actor
     if (request.scheduledFor) next.scheduledFor = request.scheduledFor

@@ -1,4 +1,8 @@
-import { QueueItem } from './types'
+import { QueueAsset, QueueItem } from './types'
+// Pure module, no node imports — the allowlist lives once and both sides use it.
+import { ALLOWED_EXTENSIONS, safeFilename } from '../../server/lib/assets.mjs'
+
+export const ACCEPT_ATTRIBUTE: string = (ALLOWED_EXTENSIONS as string[]).join(',')
 
 /**
  * Queue mutations against the local collector.
@@ -69,4 +73,41 @@ export function actionsFor(state: QueueItem['state']): QueueAction[] {
     case 'published':
       return []
   }
+}
+
+/**
+ * Upload one generated file against a queue item.
+ *
+ * The filename travels in a header rather than a multipart body — a raw body
+ * needs no parser on either side. That does mean the header has to be
+ * ASCII-safe, so the name is checked here first: a browser throws on a
+ * non-ASCII header value, which would surface as an unhelpful network error
+ * instead of the real reason.
+ */
+export async function uploadAsset(itemId: string, file: File): Promise<{ asset: QueueAsset }> {
+  try {
+    safeFilename(file.name)
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error))
+  }
+
+  const response = await fetch(`/api/queue/${encodeURIComponent(itemId)}/asset`, {
+    method: 'POST',
+    headers: {
+      'x-filename': file.name,
+      'content-type': file.type || 'application/octet-stream',
+    },
+    body: file,
+  })
+  const text = await response.text()
+  let parsed: unknown
+  try {
+    parsed = text ? JSON.parse(text) : {}
+  } catch {
+    throw new Error(`collector returned ${response.status}: ${text.slice(0, 200)}`)
+  }
+  if (!response.ok) {
+    throw new Error((parsed as { error?: string })?.error ?? `collector returned ${response.status}`)
+  }
+  return parsed as { asset: QueueAsset }
 }

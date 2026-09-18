@@ -184,7 +184,8 @@ export function Studio({ snapshot, onMutated }: Props) {
                   <ChecklistRow ok={!!persona?.disclosure.bioLabel.trim()} label="AI label in profile bio" />
                   <ChecklistRow ok={!!persona?.disclosure.perPostLabel} label="Per-post AI label applied" />
                   <ChecklistRow ok={!!persona?.disclosure.platformAiFlag} label="Platform AI-content flag set" />
-                  <ChecklistRow ok={false} label="Human sign-off on the generated asset" pending />
+                  <ChecklistRow ok={false} label="Generated asset attached" pending />
+                  <ChecklistRow ok={false} label="Human sign-off on that asset" pending />
                   {!status.complete && (
                     <p className="muted" style={{ marginTop: 6 }}>
                       Publishing is blocked for this persona until the missing labels are in place.

@@ -24,9 +24,13 @@ connected:
 ## The queue
 
 An item moves `brief → review → scheduled → published`, with `rejected` reachable from
-anywhere and reworkable via `reopen`. Two rules are enforced, and enforced **on the
+anywhere and reworkable via `reopen`. Three rules are enforced, and enforced **on the
 server** rather than in the UI — the console is a convenience, not the guard:
 
+- **Nothing moves without an attached asset.** An item with no generated file cannot be
+  submitted for review, approved, or published. This is the rule that makes the others
+  mean anything: a sign-off on an item with nothing attached is a sign-off on the brief
+  its author wrote, which is not review.
 - **Approving requires a name.** There is no anonymous sign-off; the actor is recorded on
   the item.
 - **Approving requires complete disclosure.** A persona missing a bio label, a per-post
@@ -42,12 +46,32 @@ Two copies would drift, and the drift would end with something publishing that s
 have.
 
 ```
-POST /api/queue             {personaId, brief, generator?}
-POST /api/queue/transition  {id, action, actor?, reason?, scheduledFor?}
-                            action: submit | approve | reject | publish | reopen
+POST /api/queue                 {personaId, brief, generator?}
+POST /api/queue/transition      {id, action, actor?, reason?, scheduledFor?}
+                                action: submit | approve | reject | publish | reopen
+POST /api/queue/<id>/asset      raw body, filename in the x-filename header
+GET  /api/assets/<id>/<file>    serves it back for review
 ```
 
 A refused transition returns 400 with the reason; only an unexpected failure is a 500.
+
+### Assets
+
+Generated files live at `data/assets/<itemId>/`, and the filesystem is the only source of
+truth — nothing about assets is stored in `queue.json`, so a file dropped into that folder
+by hand appears in the console on the next read. That is the workflow when you generate in
+Claude and save the result yourself; the **Attach** button in the queue row does the same
+thing over HTTP.
+
+Serving files from a local origin is the sharp edge here, so the rules refuse rather than
+repair. Filenames must match a narrow charset, with no separators, traversal, control
+characters, leading dots or Windows device names, and the type comes from an allowlist:
+`.png .jpg .jpeg .webp .gif .mp4 .webm .mov`. `.svg` and `.html` are deliberately absent —
+both execute script, and serving them next to the console would be stored XSS against the
+operator's own browser. Paths are independently re-checked for containment inside the
+assets directory, responses carry `nosniff` and a `default-src 'none'; sandbox` CSP,
+uploads are capped and streamed (never buffered whole), and a missing file 404s without
+echoing the resolved path.
 
 ## What it deliberately does not do
 
@@ -69,7 +93,7 @@ A refused transition returns 400 with the reason; only an unexpected failure is 
 ```bash
 npm install
 npm run dev        # http://localhost:5173 — runs on the bundled mock
-npm test           # 105 tests, no browser and no credentials needed
+npm test           # 135 tests, no browser and no credentials needed
 npm run typecheck
 npm run build
 ```
@@ -100,18 +124,20 @@ src/
     economics.ts     the projection model + the structural checks on it
     series.ts        scales, paths, period-over-period change
     format.ts        number/date formatting
-  components/        stat tile, time-series chart (crosshair + tooltip), bars, tables
+  components/        stat tile, time-series chart (crosshair + tooltip), bars, tables,
+                     asset strip
   features/          Dashboard, Studio, Economics
 shared/
   gate.mjs           the publish gate, shared verbatim by console and collector
 server/
-  index.mjs          local HTTP face: snapshot, collect, queue writes, the OAuth dance
+  index.mjs          local HTTP face: snapshot, collect, queue writes, assets, OAuth
+  assetStore.mjs     generated files on disk; derived into the snapshot, never persisted
   cli.mjs            `npm run collect`
   collect.mjs        one collection run, failing per-channel rather than per-run
   snapshotService.mjs assembles the served Snapshot from disk
   google/            OAuth + thin YouTube API wrappers
   lib/               PURE and tested: response mapping, history merge, snapshot
-                     assembly, queue state machine
+                     assembly, queue state machine, asset naming and type rules
 data/                your personas, queue and revenue (gitignored; examples committed)
 docs/
   openart-mcp.md     the connector setup the reel was actually teaching

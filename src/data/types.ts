@@ -57,6 +57,23 @@ export type QueueState =
   | 'published'
   | 'rejected'
 
+/**
+ * A generated file attached to a queue item. Derived from the filesystem by the
+ * collector, never stored in queue.json — two answers to "what is attached?"
+ * would be one too many.
+ */
+export interface QueueAsset {
+  /** `<itemId>/<filename>`. */
+  id: string
+  filename: string
+  /** Path the console loads it from, or a data URI in the mock. */
+  url: string
+  kind: 'image' | 'video'
+  contentType?: string
+  bytes?: number
+  addedAt?: string
+}
+
 export interface QueueItem {
   id: string
   personaId: string
@@ -69,6 +86,11 @@ export interface QueueItem {
   /** Who signed off. Absent until a human actually reviews it. */
   approvedBy?: string
   rejectionReason?: string
+  /**
+   * What a reviewer actually looks at. An item with none cannot be approved:
+   * signing off with nothing attached is signing off on the brief.
+   */
+  assets?: QueueAsset[]
 }
 
 export interface Post {

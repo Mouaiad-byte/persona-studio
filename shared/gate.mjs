@@ -26,9 +26,22 @@ export function disclosureStatus(persona) {
 }
 
 /**
+ * Whether an item has something a person could actually look at.
+ *
+ * @param {{ assets?: Array<unknown> }} item
+ */
+export function hasAsset(item) {
+  return Array.isArray(item?.assets) && item.assets.length > 0
+}
+
+/**
  * Whether one queue item may publish, and every reason it may not.
  *
- * @param {{ state: string, approvedBy?: string }} item
+ * The asset requirement is the one that makes the rest mean anything: a
+ * sign-off on an item with nothing attached is a sign-off on the brief its
+ * author wrote, which is not review.
+ *
+ * @param {{ state: string, approvedBy?: string, assets?: Array<unknown> }} item
  * @param {object | undefined} persona
  * @returns {{ allowed: boolean, reasons: string[] }}
  */
@@ -42,6 +55,11 @@ export function publishGate(item, persona) {
   }
   if (item.state === 'brief' || item.state === 'generating') {
     reasons.push('nothing generated yet')
+  }
+  // Both exempt an already-published item: the requirement is on the
+  // transition, and retro-flagging something already out is not actionable.
+  if (!hasAsset(item) && item.state !== 'published') {
+    reasons.push('no asset attached')
   }
   if (!item.approvedBy && item.state !== 'published') {
     reasons.push('no human sign-off')

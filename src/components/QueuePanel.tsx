@@ -1,7 +1,8 @@
 import { Persona, QueueItem, QueueState } from '../data/types'
 import { publishGate } from '../lib/disclosure'
 import { shortDate } from '../lib/format'
-import { QueueAction, actionsFor } from '../data/queueApi'
+import { ACCEPT_ATTRIBUTE, QueueAction, actionsFor } from '../data/queueApi'
+import { AssetStrip } from './AssetStrip'
 
 const STATE_LABEL: Record<QueueState, string> = {
   brief: 'Brief',
@@ -36,6 +37,7 @@ interface Props {
   canWrite: boolean
   busyId?: string | null
   onAction?: (item: QueueItem, action: QueueAction) => void
+  onAttach?: (item: QueueItem, file: File) => void
 }
 
 /**
@@ -44,7 +46,7 @@ interface Props {
  * hidden. Published items drop out; rejected ones stay, because a rejection
  * should be reworkable rather than lost.
  */
-export function QueuePanel({ queue, personas, canWrite, busyId, onAction }: Props) {
+export function QueuePanel({ queue, personas, canWrite, busyId, onAction, onAttach }: Props) {
   const byId = new Map(personas.map((p) => [p.id, p]))
   const open = queue.filter((q) => q.state !== 'published')
 
@@ -60,6 +62,7 @@ export function QueuePanel({ queue, personas, canWrite, busyId, onAction }: Prop
     <table>
       <thead>
         <tr>
+          <th scope="col">Asset</th>
           <th scope="col">Brief</th>
           <th scope="col">Persona</th>
           <th scope="col">State</th>
@@ -74,7 +77,10 @@ export function QueuePanel({ queue, personas, canWrite, busyId, onAction }: Prop
           const busy = busyId === item.id
           return (
             <tr key={item.id} style={{ opacity: busy ? 0.55 : 1 }}>
-              <td style={{ maxWidth: 300 }}>
+              <td>
+                <AssetStrip assets={item.assets ?? []} />
+              </td>
+              <td style={{ maxWidth: 280 }}>
                 {item.brief}
                 <div className="muted small mono" style={{ marginTop: 2 }}>{item.generator}</div>
                 {item.rejectionReason && (
@@ -117,6 +123,22 @@ export function QueuePanel({ queue, personas, canWrite, busyId, onAction }: Prop
                         {ACTION_LABEL[action]}
                       </button>
                     ))}
+                    {item.state !== 'published' && onAttach && (
+                      <label className="attach-label">
+                        Attach
+                        <input
+                          type="file"
+                          accept={ACCEPT_ATTRIBUTE}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            // Reset so re-picking the same file fires onChange again.
+                            e.target.value = ''
+                            if (file) onAttach(item, file)
+                          }}
+                        />
+                      </label>
+                    )}
                   </div>
                 </td>
               )}

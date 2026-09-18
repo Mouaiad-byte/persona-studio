@@ -6,6 +6,9 @@ import { collect } from './collect.mjs'
 import { currentSnapshot } from './snapshotService.mjs'
 import { addItem, applyTransition } from './lib/queue.mjs'
 import { readJson, writeJson } from './store.mjs'
+import { decorateQueue, resolveAssetPath, saveAsset, stripDerived } from './assetStore.mjs'
+import { contentTypeFor } from './lib/assets.mjs'
+import { createReadStream, statSync } from 'node:fs'
 
 /**
  * The collector's local HTTP face. It serves the snapshot the console reads,
@@ -64,7 +67,7 @@ const routes = {
     const body = await readJsonBody(request)
     const personas = readJson('personas.json', [])
     const { queue, item } = addItem(readJson('queue.json', []), personas, body)
-    writeJson('queue.json', queue)
+    writeJson('queue.json', stripDerived(queue))
     return { item }
   },
 
@@ -76,8 +79,11 @@ const routes = {
   'POST /api/queue/transition': async (request) => {
     const body = await readJsonBody(request)
     const personas = readJson('personas.json', [])
-    const { queue, item } = applyTransition(readJson('queue.json', []), personas, body)
-    writeJson('queue.json', queue)
+    // Decorated first: the gate asks what is attached, and the filesystem is
+    // the only thing that knows.
+    const decorated = decorateQueue(readJson('queue.json', []))
+    const { queue, item } = applyTransition(decorated, personas, body)
+    writeJson('queue.json', stripDerived(queue))
     return { item }
   },
 }
@@ -121,6 +127,51 @@ const server = createServer(async (request, response) => {
       return
     }
 
+    // GET /api/assets/<itemId>/<filename>
+    const assetMatch = /^\/api\/assets\/([^/]+)\/([^/]+)$/.exec(url.pathname)
+    if (assetMatch && request.method === 'GET') {
+      const itemId = decodeURIComponent(assetMatch[1])
+      const filename = decodeURIComponent(assetMatch[2])
+      // Both throw on anything unsafe; the catch below turns that into a 400.
+      const path = resolveAssetPath(itemId, filename)
+      let stats
+      try {
+        stats = statSync(path)
+      } catch {
+        // Deliberately does not echo the resolved path: a 404 should not double
+        // as a filesystem-layout probe.
+        response.writeHead(404, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: `no asset "${filename}" on item "${itemId}"` }))
+        return
+      }
+      response.writeHead(200, {
+        'content-type': contentTypeFor(filename),
+        'content-length': stats.size,
+        // The type is from a short allowlist, but say so anyway: no sniffing,
+        // no inline execution, nothing embedding this page.
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
+        'cache-control': 'no-store',
+      })
+      createReadStream(path).pipe(response)
+      return
+    }
+
+    // POST /api/queue/<itemId>/asset — raw body upload, filename in a header.
+    const uploadMatch = /^\/api\/queue\/([^/]+)\/asset$/.exec(url.pathname)
+    if (uploadMatch && request.method === 'POST') {
+      const itemId = decodeURIComponent(uploadMatch[1])
+      const queue = readJson('queue.json', [])
+      if (!queue.some((entry) => entry.id === itemId)) {
+        throw new Error(`no queue item with id "${itemId}"`)
+      }
+      const filename = String(request.headers['x-filename'] ?? '')
+      const asset = await saveAsset(itemId, filename, request)
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ asset }))
+      return
+    }
+
     const handler = routes[key]
     if (!handler) {
       response.writeHead(404, { 'content-type': 'application/json' })
@@ -136,9 +187,9 @@ const server = createServer(async (request, response) => {
     // A rejected transition or a malformed body is the request's problem; only
     // an unexpected failure is the server's.
     const isCallerError =
-      /^(cannot |unknown |no queue item|a queue item needs|approve requires|reject requires|request body)/.test(
+      /^(cannot |unknown |no queue item|a queue item needs|approve requires|reject requires|request body|asset |")/.test(
         message,
-      )
+      ) || /is not an allowed asset type|is not a valid queue item id/.test(message)
     response.writeHead(isCallerError ? 400 : 500, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ error: message }))
   }

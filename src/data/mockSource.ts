@@ -1,6 +1,7 @@
 import {
   Account,
   DataSource,
+  QueueAsset,
   MetricPoint,
   Persona,
   Platform,
@@ -194,6 +195,29 @@ function buildPosts(rand: () => number, personas: Persona[], today: Date): Post[
   return posts
 }
 
+/**
+ * Placeholder thumbnails, so the mock demonstrates review-with-an-asset rather
+ * than leaving every item blocked on a file that cannot exist offline. Tiny
+ * gradients, deliberately not pretending to be generated content.
+ */
+const PLACEHOLDER_PNG = [
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAAICAIAAABVpBlvAAAAfElEQVR42gXBIQ4AIAgAQP5sMFgMBoubFjYDxY3CaNKwGv2Td/AwPAqPw9PwLDwPcDFeipfj1XgtXo9wMB1Kh9PRdCwdT7Axb8qb89a8LW/PIFiEinARLWJFvMDCuqgurkvrsrq8wsQ2qU1uU9u0Nr1Bx9FpdB5dR7fRfXym71i3d9OnKwAAAABJRU5ErkJggg==',
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAAICAIAAABVpBlvAAAAfUlEQVR42gXBIRYAEAwA0J1uYWFhYWHXkDRN8RRPmkTTRM3R/A8YCoXCoUgoGoqFAhgbxcaxSWwam8UGmJySc3JJrsktOWCelCfnKXlqnpYnYN1UN9ctdWvdVjdgP9QP9yP9aD/WD+C4NC6PK+PquDYu4Hq0Hq8n6+l6tt4HRstIHwcBitgAAAAASUVORK5CYII=',
+]
+
+function placeholderAssets(itemId: string, index: number): QueueAsset[] {
+  return [
+    {
+      id: `${itemId}/frame-01.png`,
+      filename: 'frame-01.png',
+      url: PLACEHOLDER_PNG[index % PLACEHOLDER_PNG.length],
+      kind: 'image',
+      contentType: 'image/png',
+      bytes: 183,
+    },
+  ]
+}
+
 function buildQueue(rand: () => number, personas: Persona[], today: Date): QueueItem[] {
   const states: QueueState[] = [
     'review', 'review', 'review', 'scheduled', 'scheduled',
@@ -215,6 +239,8 @@ function buildQueue(rand: () => number, personas: Persona[], today: Date): Queue
       approvedBy: state === 'scheduled' || state === 'published' ? 'you' : undefined,
       rejectionReason:
         state === 'rejected' ? 'Generated hands failed on the pour shot; not publishable' : undefined,
+      // A brief has nothing generated yet; everything past it does.
+      assets: state === 'brief' ? [] : placeholderAssets(`q-${i + 1}`, i),
     }
     return item
   })

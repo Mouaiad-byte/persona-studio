@@ -26,6 +26,7 @@ function item(overrides: Partial<QueueItem> = {}): QueueItem {
     state: 'review',
     generator: 'openart-mcp:flux-1.1',
     createdAt: '2026-01-01',
+    assets: [{ id: 'q1/frame.png', filename: 'frame.png', url: '/api/assets/q1/frame.png', kind: 'image' }],
     ...overrides,
   }
 }
@@ -53,6 +54,12 @@ describe('publishGate', () => {
     const gate = publishGate(item({ approvedBy: 'you' }), persona({ platformAiFlag: false }))
     expect(gate.allowed).toBe(false)
     expect(gate.reasons[0]).toContain('platform AI flag')
+  })
+
+  it('blocks an item with nothing attached to look at', () => {
+    const gate = publishGate(item({ approvedBy: 'you', assets: [] }), persona())
+    expect(gate.allowed).toBe(false)
+    expect(gate.reasons).toContain('no asset attached')
   })
 
   it('blocks a brief that has not been generated yet', () => {

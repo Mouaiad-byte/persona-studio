@@ -13,6 +13,9 @@ const unlabelled = {
 }
 const personas = [labelled, unlabelled]
 
+/** An attached asset, as the store derives it from disk. */
+const asset = { id: 'q-1/frame-01.png', filename: 'frame-01.png', kind: 'image' }
+
 function item(overrides: Record<string, unknown> = {}) {
   return {
     id: 'q-1',
@@ -21,6 +24,7 @@ function item(overrides: Record<string, unknown> = {}) {
     state: 'review',
     generator: 'openart-mcp:flux-1.1',
     createdAt: '2026-09-17',
+    assets: [asset],
     ...overrides,
   }
 }
@@ -45,6 +49,44 @@ describe('applyTransition', () => {
     applyTransition(queue, personas, { id: 'q-1', action: 'approve', actor: 'you' })
     expect(queue[0].state).toBe('review')
     expect(queue[0]).not.toHaveProperty('approvedBy')
+  })
+
+  describe('the asset requirement', () => {
+    it('refuses to submit for review with nothing attached', () => {
+      expect(() =>
+        applyTransition([item({ state: 'brief', assets: [] })], personas, { id: 'q-1', action: 'submit' }),
+      ).toThrow(/nothing to review/)
+    })
+
+    it('refuses to approve with nothing attached', () => {
+      expect(() =>
+        applyTransition([item({ assets: [] })], personas, { id: 'q-1', action: 'approve', actor: 'you' }),
+      ).toThrow(/nothing to sign off on/)
+    })
+
+    it('refuses to approve when assets were never loaded', () => {
+      expect(() =>
+        applyTransition([item({ assets: undefined })], personas, { id: 'q-1', action: 'approve', actor: 'you' }),
+      ).toThrow(/no asset attached/)
+    })
+
+    it('refuses to publish with nothing attached', () => {
+      expect(() =>
+        applyTransition(
+          [item({ state: 'scheduled', approvedBy: 'you', assets: [] })],
+          personas,
+          { id: 'q-1', action: 'publish' },
+        ),
+      ).toThrow(/no asset attached/)
+    })
+
+    it('allows submit once an asset is attached', () => {
+      const { item: next } = applyTransition([item({ state: 'brief' })], personas, {
+        id: 'q-1',
+        action: 'submit',
+      })
+      expect(next.state).toBe('review')
+    })
   })
 
   describe('approve', () => {

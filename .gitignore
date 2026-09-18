@@ -14,6 +14,8 @@ data/revenue.csv
 data/collected.json
 data/google-token.json
 data/*.tmp
+# Generated assets are operator content, and can be large.
+data/assets/
 
 # TypeScript incremental build artifacts
 *.tsbuildinfo

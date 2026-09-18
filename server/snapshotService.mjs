@@ -2,6 +2,7 @@ import { parseRevenueCsv } from './lib/map.mjs'
 import { applyFollowers, buildSnapshot } from './lib/snapshot.mjs'
 import { readJson, readText } from './store.mjs'
 import { today } from './collect.mjs'
+import { decorateQueue } from './assetStore.mjs'
 
 /**
  * Assemble the current Snapshot from whatever is on disk. Reads only — the
@@ -10,7 +11,7 @@ import { today } from './collect.mjs'
  */
 export function currentSnapshot() {
   const personas = readJson('personas.json', [])
-  const queue = readJson('queue.json', [])
+  const queue = decorateQueue(readJson('queue.json', []))
   const collected = readJson('collected.json', {
     followers: {},
     viewsByPlatform: {},
